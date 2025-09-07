@@ -10,9 +10,12 @@
 #include <thread>
 #include <vector>
 
+const size_t THREADS_COUNT_MIN = 1;
+const size_t THREADS_COUNT_MAX = std::thread::hardware_concurrency();
+
 class ThreadPool {
 public:
-    explicit ThreadPool(size_t numThreads = std::thread::hardware_concurrency());
+    explicit ThreadPool(size_t numThreads = THREADS_COUNT_MAX);
     ~ThreadPool();
     ThreadPool(const ThreadPool &) = delete;
     ThreadPool &operator=(const ThreadPool &) = delete;
@@ -37,8 +40,8 @@ private:
     std::vector<std::thread> m_workerThreads;
     std::mutex m_mutex;
     std::condition_variable m_condition;
-    std::atomic_bool m_shutdown;
-    std::atomic_size_t m_activeThreads;
+    bool m_shutdown;
+    size_t m_activeThreads;
     size_t m_coreThreads;
 };
 
