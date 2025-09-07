@@ -2,6 +2,7 @@
 #define SHARED_PTR_H
 
 #include <atomic>
+#include <cassert>
 #include <cstddef>
 #include <utility>
 
@@ -42,22 +43,27 @@ private:
 };
 
 template <typename T>
-SharedPtr<T>::SharedPtr() : m_data(nullptr), m_block(nullptr) {}
+SharedPtr<T>::SharedPtr() : m_data(nullptr), m_block(nullptr)
+{
+}
 
 template <typename T>
-SharedPtr<T>::SharedPtr(T* p) : m_data(p) {
+SharedPtr<T>::SharedPtr(T* p) : m_data(p)
+{
     if (m_data) {
         m_block = new ControlBlock();
     }
 }
 
 template <typename T>
-SharedPtr<T>::~SharedPtr() {
+SharedPtr<T>::~SharedPtr()
+{
     Release();
 }
 
 template <typename T>
-void SharedPtr<T>::Release() {
+void SharedPtr<T>::Release()
+{
     if (m_block && m_block->m_refCount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
         delete m_data;
         delete m_block;
@@ -67,43 +73,52 @@ void SharedPtr<T>::Release() {
 }
 
 template <typename T>
-SharedPtr<T>::SharedPtr(const SharedPtr& other)
-    : m_data(other.m_data), m_block(other.m_block) {
+SharedPtr<T>::SharedPtr(const SharedPtr& other) : m_data(other.m_data), m_block(other.m_block)
+{
     if (m_block) {
         m_block->m_refCount.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
 template <typename T>
-SharedPtr<T>& SharedPtr<T>::operator=(const SharedPtr& other) {
+SharedPtr<T>& SharedPtr<T>::operator=(const SharedPtr& other)
+{
+    // copy and swap
     SharedPtr(other).swap(*this);
     return *this;
 }
 
 template <typename T>
-SharedPtr<T>::SharedPtr(SharedPtr&& other) noexcept {
-    swap(other);
+SharedPtr<T>::SharedPtr(SharedPtr&& other) noexcept : m_data(other.m_data), m_block(other.m_block)
+{
+    other.m_data = nullptr;
+    other.m_block = nullptr;
 }
 
 template <typename T>
-SharedPtr<T>& SharedPtr<T>::operator=(SharedPtr&& other) noexcept {
+SharedPtr<T>& SharedPtr<T>::operator=(SharedPtr&& other) noexcept
+{
+    // move and swap
     SharedPtr(std::move(other)).swap(*this);
     return *this;
 }
 
 template <typename T>
-void SharedPtr<T>::swap(SharedPtr& other) noexcept {
+void SharedPtr<T>::swap(SharedPtr& other) noexcept
+{
     std::swap(m_data, other.m_data);
     std::swap(m_block, other.m_block);
 }
 
 template <typename T>
-T* SharedPtr<T>::Get() const {
+T* SharedPtr<T>::Get() const
+{
     return m_data;
 }
 
 template <typename T>
-long SharedPtr<T>::UseCount() const {
+long SharedPtr<T>::UseCount() const
+{
     if (m_block) {
         return m_block->m_refCount.load(std::memory_order_relaxed);
     }
@@ -111,32 +126,38 @@ long SharedPtr<T>::UseCount() const {
 }
 
 template <typename T>
-bool SharedPtr<T>::Unique() const {
+bool SharedPtr<T>::Unique() const
+{
     return UseCount() == 1;
 }
 
 template <typename T>
-void SharedPtr<T>::Reset() {
+void SharedPtr<T>::Reset()
+{
     Release();
 }
 
 template <typename T>
-void SharedPtr<T>::Reset(T* p) {
+void SharedPtr<T>::Reset(T* p)
+{
     SharedPtr(p).swap(*this);
 }
 
 template <typename T>
-T& SharedPtr<T>::operator*() const {
+T& SharedPtr<T>::operator*() const
+{
     return *m_data;
 }
 
 template <typename T>
-T* SharedPtr<T>::operator->() const {
+T* SharedPtr<T>::operator->() const
+{
     return m_data;
 }
 
 template <typename T>
-SharedPtr<T>::operator bool() const {
+SharedPtr<T>::operator bool() const
+{
     return m_data != nullptr;
 }
 
