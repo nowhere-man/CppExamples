@@ -7,7 +7,9 @@
 #include <future>
 #include <memory>
 #include <queue>
+#include <stdexcept>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 const size_t THREADS_COUNT_MIN = 1;
@@ -23,26 +25,51 @@ public:
     ThreadPool &operator=(ThreadPool &&) = delete;
 
     template <typename F, typename... Args>
-    void CommitTask(F &&f, Args &&...args) {
+    void CommitTask(F &&f, Args &&...args)
+    {
         auto task = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
         {
             std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_shutdown) {
+                return;
+            }
             m_taskQueue.emplace(task);
         }
         m_condition.notify_one();
     }
+
+    template <typename F, typename... Args>
+    auto CommitTask(F &&f, Args &&...args) -> std::future<decltype(f(args...))>
+    {
+        using RT = decltype(f(args...));
+
+        auto task = std::make_shared<std::packaged_task<RT()>>(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+        std::future<RT> result = task->get_future();
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_shutdown) {
+                throw std::runtime_error("CommitTask on a stopped ThreadPool");
+            }
+            m_taskQueue.emplace([task]() {
+                (*task)();
+            });
+        }
+        m_condition.notify_one();
+        return result;
+    }
+
     void Resize(size_t newSize);
 
 private:
     void Worker();
-
+    void RemoveUnusedThreads();
     std::queue<std::function<void()>> m_taskQueue;
     std::vector<std::thread> m_workerThreads;
     std::mutex m_mutex;
     std::condition_variable m_condition;
     bool m_shutdown;
-    size_t m_activeThreads;
     size_t m_coreThreads;
+    std::unordered_set<std::thread::id> m_threadsToJoin;
 };
 
 #endif
