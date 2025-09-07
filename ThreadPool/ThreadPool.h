@@ -24,20 +24,6 @@ public:
     ThreadPool &operator=(ThreadPool &&) = delete;
 
     template <typename F, typename... Args>
-    void CommitTask(F &&f, Args &&...args)
-    {
-        auto task = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            if (m_shutdown) {
-                return;
-            }
-            m_taskQueue.emplace(task);
-        }
-        m_condition.notify_one();
-    }
-
-    template <typename F, typename... Args>
     auto CommitTask(F &&f, Args &&...args) -> std::future<decltype(f(args...))>
     {
         using RT = decltype(f(args...));
