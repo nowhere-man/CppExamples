@@ -1,15 +1,13 @@
 #include "ThreadPool.h"
 
 #include <algorithm>
-#include <unordered_set>
 
 ThreadPool::ThreadPool(size_t numThreads) : m_shutdown(false)
 {
     m_coreThreads = std::min(THREADS_COUNT_MAX, std::max(THREADS_COUNT_MIN, numThreads));
-    m_workerThreads.reserve(m_coreThreads);
     for (size_t i = 0; i < m_coreThreads; ++i) {
-        m_workerThreads.emplace_back([this]() {
-            Worker();
+        m_workerThreads.emplace_back([this, i]() {
+            Worker(i);
         });
     }
 }
@@ -31,54 +29,35 @@ ThreadPool::~ThreadPool()
     }
 }
 
-void ThreadPool::RemoveUnusedThreads()
-{
-    for (auto& thread : m_workerThreads) {
-        if (m_threadsToJoin.count(thread.get_id())) {
-            if (thread.joinable()) {
-                thread.join();
-            }
-        }
-    }
-
-    auto first_to_remove = std::remove_if(m_workerThreads.begin(), m_workerThreads.end(), [](const std::thread& t) {
-        return !t.joinable();
-    });
-    m_workerThreads.erase(first_to_remove, m_workerThreads.end());
-    m_threadsToJoin.clear();
-}
-
 void ThreadPool::Resize(size_t newSize)
 {
     newSize = std::min(THREADS_COUNT_MAX, std::max(THREADS_COUNT_MIN, newSize));
 
     std::lock_guard<std::mutex> lock(m_mutex);
-    RemoveUnusedThreads();
     m_coreThreads = newSize;
 
     size_t current_size = m_workerThreads.size();
     if (newSize > current_size) {
-        for (size_t i = 0; i < newSize - current_size; ++i) {
-            m_workerThreads.emplace_back([this]() {
-                Worker();
+        for (size_t i = current_size; i < newSize; ++i) {
+            m_workerThreads.emplace_back([this, i]() {
+                Worker(i);
             });
         }
     }
     m_condition.notify_all();
 }
 
-void ThreadPool::Worker()
+void ThreadPool::Worker(size_t index)
 {
     while (true) {
         std::function<void()> task;
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_condition.wait(lock, [this] {
-                return m_shutdown || !m_taskQueue.empty() || m_workerThreads.size() > m_coreThreads;
+            m_condition.wait(lock, [this, index] {
+                return m_shutdown || (!m_taskQueue.empty() && index < m_coreThreads);
             });
 
-            if ((m_shutdown || m_workerThreads.size() > m_coreThreads) && m_taskQueue.empty()) {
-                m_threadsToJoin.insert(std::this_thread::get_id());
+            if (m_shutdown && m_taskQueue.empty()) {
                 return;
             }
 

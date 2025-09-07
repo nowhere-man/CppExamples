@@ -9,7 +9,6 @@
 #include <queue>
 #include <stdexcept>
 #include <thread>
-#include <unordered_set>
 #include <vector>
 
 const size_t THREADS_COUNT_MIN = 1;
@@ -61,15 +60,13 @@ public:
     void Resize(size_t newSize);
 
 private:
-    void Worker();
-    void RemoveUnusedThreads();
+    void Worker(size_t index);
     std::queue<std::function<void()>> m_taskQueue;
     std::vector<std::thread> m_workerThreads;
     std::mutex m_mutex;
     std::condition_variable m_condition;
     bool m_shutdown;
     size_t m_coreThreads;
-    std::unordered_set<std::thread::id> m_threadsToJoin;
 };
 
 #endif
