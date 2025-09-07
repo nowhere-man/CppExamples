@@ -4,20 +4,18 @@
 #include <chrono>
 #include <iostream>
 
-void example_task(int value)
+void task(int value)
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     std::cout << "Task executed with value: " << value << std::endl;
 }
 
+
 int main()
 {
     ThreadPool pool(4);
 
-    pool.CommitTask(example_task, 1);
-    pool.CommitTask([]() {
-        std::cout << "Lambda task executed." << std::endl;
-    });
+    pool.CommitTask(task, 1);
 
     std::cout << "Tasks committed." << std::endl;
 
