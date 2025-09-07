@@ -9,31 +9,23 @@
 template <typename T, size_t BlockSize = 4096, bool ThreadSafe = true>
 class MemoryPool {
 public:
-    // 构造函数
     MemoryPool() noexcept;
-    // 析构函数
     ~MemoryPool() noexcept;
 
-    // 禁用拷贝构造函数
     MemoryPool(const MemoryPool &memoryPool) = delete;
-    // 禁用拷贝赋值运算符
     MemoryPool &operator=(const MemoryPool &memoryPool) = delete;
-    // 禁用移动构造函数
     MemoryPool(MemoryPool &&memoryPool) = delete;
-    // 禁用移动赋值运算符
     MemoryPool &operator=(MemoryPool &&memoryPool) = delete;
 
     // 分配内存并构造一个元素
     template <typename... Args>
     T* NewElement(Args &&...args);
-
     // 析构一个元素并释放其内存
     void DeleteElement(T* p);
 private:
-    // 内存槽，可以存储一个元素或者一个指向下一个槽的指针
     union Slot {
-        T element;
-        Slot *next;
+        T element;  // 占用状态，存元素
+        Slot *next; // 空闲状态，存下一个slot的指针
     };
 
     Slot* m_firstBlock;     // 指向第一个内存块的指针
